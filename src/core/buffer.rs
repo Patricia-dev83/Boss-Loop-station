@@ -17,7 +17,7 @@ use std::{
 use crossbeam_queue::SegQueue;
 use dashmap::DashMap;
 use realfft::RealFftPlanner;
-use crate::error::AudioError;
+use crate::prelude::{AudioError, AudioError::JackError};
 
 /// Main audio buffer structure with multi-channel support
 #[derive(Clone, Debug)]
@@ -29,8 +29,9 @@ pub struct AudioBuffer {
 }
 
 /// Thread-safe buffer pool for efficient memory reuse
+#[derive(Clone)]
 pub struct BufferPool {
-    pool: DashMap<usize, SegQueue<Arc<Vec<Vec<f32>>>>>,
+    pool: DashMap<usize, Arc<SegQueue<Vec<Vec<f32>>>>>,
     max_buffers: usize,
 }
 
@@ -78,7 +79,7 @@ impl AudioBuffer {
 
     /// Get mutable reference to samples (creates new Arc if needed)
     pub fn samples_mut(&mut self) -> &mut [Vec<f32>] {
-        Arc::make_mut(&mut self.samples)
+        &mut Arc::make_mut(&mut self.samples)[..]
     }
 
     /// Get buffer length in samples
@@ -103,8 +104,8 @@ impl AudioBuffer {
 
     /// Append samples to buffer (mono input)
     pub fn append_mono(&mut self, samples: &[f32]) {
-        let samples = self.samples_mut();
-        for channel in samples.iter_mut() {
+        let buffer_samples = self.samples_mut();
+        for channel in buffer_samples.iter_mut() {
             channel.extend_from_slice(samples);
         }
     }
@@ -175,16 +176,17 @@ impl AudioBuffer {
             return;
         }
 
+        let channel_count = self.channels;
         let samples = self.samples_mut();
         let mono_data: Vec<f32> = samples[0]
             .iter()
             .enumerate()
             .map(|(i, _)| {
-                samples.iter().map(|channel| channel[i]).sum::<f32>() / self.channels as f32
+                samples.iter().map(|channel| channel[i]).sum::<f32>() / channel_count as f32
             })
             .collect();
 
-        *samples = vec![mono_data];
+        *Arc::make_mut(&mut self.samples) = vec![mono_data];
         self.channels = 1;
     }
 }
@@ -200,11 +202,11 @@ impl BufferPool {
 
     /// Get buffer from pool or create new one
     pub fn get(&self, channels: usize, capacity: usize) -> PooledBuffer {
-        let queue = self.pool.entry(channels).or_insert_with(|| SegQueue::new());
+        let queue = self.pool.entry(channels).or_insert_with(|| Arc::new(SegQueue::new()));
         
         if let Some(data) = queue.pop() {
             PooledBuffer {
-                data,
+                data: data.into(),
                 pool: Arc::new(self.clone()),
             }
         } else {
@@ -220,7 +222,7 @@ impl BufferPool {
         if self.pool.len() < self.max_buffers {
             let channels = data.len();
             if let Some(queue) = self.pool.get(&channels) {
-                queue.push(data);
+                queue.push(data.to_vec());
             }
         }
     }
@@ -252,7 +254,7 @@ impl Deref for PooledBuffer {
 
 impl DerefMut for PooledBuffer {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        Arc::make_mut(&mut self.data)
+        &mut Arc::make_mut(&mut self.data)[..]
     }
 }
 

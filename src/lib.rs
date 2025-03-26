@@ -1,5 +1,4 @@
-﻿//! Library root for loop station
-//! Loop Station Core Library
+﻿//! Loop Station Core Library
 //!
 //! Provides all audio processing, synchronization, and effect capabilities
 //! for a professional-grade loop station application.
@@ -46,10 +45,14 @@ pub mod state {
 
 /// Re-exports of commonly used types
 pub mod prelude {
-    pub use crate::core::engine::AudioEngine;
-    pub use crate::audio::effects::{Effect, EffectsProcessor};
-    pub use crate::sync::clock::Clock;
-    pub use crate::error::{AudioError, JackError, TrackError};
+    pub use crate::{
+        core::engine::AudioEngine,
+        audio::effects::EffectsProcessor,
+        sync::clock::MasterClock,
+        sync::clock::Quantizer,
+        error::types::{AudioError, AudioError::JackError, AudioError::TrackError},
+        DEFAULT_SAMPLE_RATE
+    };
 }
 
 /// Sample rate used throughout the application

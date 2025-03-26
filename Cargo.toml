@@ -2,23 +2,44 @@
 name = "loop_station"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Patricia Bronckers <pbronck@gmail.com>"]
 description = "Professional Audio Loop Station"
 license = "MIT"
-repository = "https://github.com/yourusername/loop_station"
+repository = "https://github.com/Patricia_dev83/Boss-Loop_station"
+documentation = "https://github.com/Patricia_dev83/Boss-Loop_station/blob/main/README.md"
+readme = "README.md"
+
+[lib]
+name = "loop_station"
+path = "src/lib.rs"
+
+[features]
+default = ["jack_backend"]
+jack_backend = ["jack"]  # Now valid since jack is optional
+file_io = ["symphonia", "hound"]  # These should also be optional
 
 [dependencies]
-# Core audio processing
-jack = "0.10.1"
-symphonia = "0.5.1"
-hound = "3.4.0"
+# Core audio processing - make JACK optional
+jack = { version = "0.13.2", optional = true }
+dashmap = "5.4.0"
+parking_lot = "0.12.1"
+crossbeam-channel = "0.5.6"
+crossbeam-queue = "0.3.8"  # For SegQueue
+tracing = "0.1.37"
+tokio = { version = "1.0", features = ["sync"] }
+
+
+# Make file I/O dependencies optional
+symphonia = { version = "0.5.1", optional = true }
+hound = { version = "3.4.0", optional = true }
 
 # DSP and Audio Analysis
 realfft = "1.1.0"
-spectrum = "0.7.1"
+dasp = { version = "0.11", features = ["signal"] }
 
-# MIDI
-midir = "0.9.0"
+
+# MIDI - make optional if using features
+midir = { version = "0.9.0", optional = true }
 
 # Error Handling
 thiserror = "1.0.48"

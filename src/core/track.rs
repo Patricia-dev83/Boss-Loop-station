@@ -7,10 +7,11 @@
 //! with state management, effects processing, and synchronization.
 
 use crate::{
-    audio::effects::{Effect, EffectsProcessor},
-    error::{AudioError, TrackError},
-    sync::{Clock, Quantizer},
+    audio::effects::{EffectsProcessor, AudioEffect}, 
+    prelude::AudioError,
+    sync::clock::{Quantizer, MasterClock}, // Changed to MasterClock
 };
+
 use std::{
     sync::Arc,
     time::Duration,
@@ -47,7 +48,7 @@ pub struct AudioBuffer {
 
 /// Track effects configuration
 pub struct TrackEffects {
-    pub chain: Vec<Effect>,
+    pub chain: Vec<Box<dyn AudioEffect>>,
     pub pre_gain: f32,
     pub post_gain: f32,
     pub pan: f32,
@@ -115,7 +116,7 @@ impl Track {
                 color: (255, 0, 0), // Default red
                 created_at: std::time::Instant::now(),
             },
-            quantizer: Quantizer::default(),
+            quantizer: Quantizer,
             sample_rate,
         }
     }
@@ -130,7 +131,7 @@ impl Track {
                 self.state = TrackState::Recording;
                 Ok(())
             }
-            _ => Err(TrackError::InvalidStateTransition.into()),
+            _ => Err(crate::prelude::AudioError::InvalidStateTransition.into()),
         }
     }
 
@@ -141,7 +142,7 @@ impl Track {
             self.state = TrackState::Playing;
             Ok(())
         } else {
-            Err(TrackError::InvalidStateTransition.into())
+            Err(crate::prelude::AudioError::InvalidStateTransition.into())
         }
     }
 
@@ -153,7 +154,7 @@ impl Track {
                 self.state = TrackState::Overdubbing;
                 Ok(())
             }
-            _ => Err(TrackError::InvalidStateTransition.into()),
+            _ => Err(crate::prelude::AudioError::InvalidStateTransition.into()),
         }
     }
 
@@ -179,7 +180,7 @@ impl Track {
     /// Process audio output (playback)
     pub fn process_output(&mut self, output: &mut [f32]) {
         if self.state == TrackState::Playing || self.state == TrackState::Overdubbing {
-            if !self.buffer.is_empty() {
+            if !self.buffer.samples.is_empty() {
                 let len = self.loop_length.unwrap_or(self.buffer.len());
                 
                 for out_sample in output.iter_mut() {
@@ -199,15 +200,21 @@ impl Track {
     /// Apply effects chain to entire buffer
     pub fn apply_effects(&mut self) -> Result<(), AudioError> {
         self.save_to_history();
-        self.effects.process_buffer(&mut self.buffer)
+        self.effects.process_buffer(&mut self.buffer.samples[0])
             .map_err(|e| AudioError::EffectError(e.to_string()))
     }
 
     /// Quantize buffer to nearest beat
-    pub fn quantize(&mut self, clock: &Clock) -> Result<(), AudioError> {
+    pub fn quantize(&mut self, clock: &MasterClock) -> Result<(), AudioError> {
         self.save_to_history();
-        let beat_length = clock.samples_per_beat(self.sample_rate);
-        self.quantizer.quantize(&mut self.buffer, beat_length)
+        let beat_length = clock.samples_per_beat();
+        let mut buffer_adapter = crate::core::buffer::AudioBuffer::new(
+            self.buffer.sample_rate,
+            self.buffer.channels,
+        );
+        self.quantizer.quantize(&mut buffer_adapter, beat_length)?;
+        self.buffer.set_samples(buffer_adapter.samples().to_vec());
+        Ok(())
     }
 
     /// Undo last operation
@@ -221,7 +228,7 @@ impl Track {
             self.cursor_pos = history.cursor_pos;
             Ok(())
         } else {
-            Err(TrackError::NothingToUndo.into())
+            Err(crate::prelude::AudioError::NothingToUndo.into())
         }
     }
 
@@ -236,7 +243,7 @@ impl Track {
             self.cursor_pos = history.cursor_pos;
             Ok(())
         } else {
-            Err(TrackError::NothingToRedo.into())
+            Err(crate::prelude::AudioError::NothingToRedo.into())
         }
     }
 
@@ -263,6 +270,21 @@ impl AudioBuffer {
             sample_rate,
             channels,
         }
+    }
+
+    /// Set samples for the buffer
+    pub fn set_samples(&mut self, samples: Vec<Vec<f32>>) {
+        self.samples = samples;
+    }
+
+    /// Get samples for the buffer
+    pub fn get_samples(&self) -> &Vec<Vec<f32>> {
+        &self.samples
+    }
+
+    /// Get mutable reference to samples
+    pub fn samples_mut(&mut self) -> &mut Vec<Vec<f32>> {
+        &mut self.samples
     }
 
     /// Append samples to buffer (mono)
