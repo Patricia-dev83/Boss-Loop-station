@@ -1,0 +1,52 @@
+[package]
+name = "loop_station"
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "Professional Audio Loop Station"
+license = "MIT"
+repository = "https://github.com/yourusername/loop_station"
+
+[dependencies]
+# Core audio processing
+jack = "0.10.1"
+symphonia = "0.5.1"
+hound = "3.4.0"
+
+# DSP and Audio Analysis
+realfft = "1.1.0"
+spectrum = "0.7.1"
+
+# MIDI
+midir = "0.9.0"
+
+# Error Handling
+thiserror = "1.0.48"
+anyhow = "1.0.75"
+
+# Logging
+log = "0.4.20"
+env_logger = "0.10.0"
+
+# CLI & UI
+clap = { version = "4.4.2", features = ["derive"] }
+tui = "0.19.0"
+crossterm = "0.27.0"
+
+# State Management
+serde = { version = "1.0.188", features = ["derive"] }
+config = "0.13.3"
+
+[dev-dependencies]
+mockall = "0.11.4"
+criterion = "0.5.1"
+
+[[bench]]
+name = "audio_performance"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
