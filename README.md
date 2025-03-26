@@ -16,7 +16,7 @@
 
 ### Installation
 \\\ash
-git clone https://github.com/yourusername/loop_station.git
+git clone https://github.com/Patricia-dev83/Boss-Loop_station.git
 cd loop_station
 cargo build --release
 \\\
